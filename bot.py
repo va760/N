@@ -31,7 +31,7 @@ async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
     else:
         await update.message.reply_text("❌ មិនអាចទាញ stats បាន, សូមព្យាយាមម្តងទៀត")
 
-app = ApplicationBuilder().token(API_TOKEN).build()
+app = ApplicationBuilder()
 app.add_handler(CommandHandler("start", start))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
 
