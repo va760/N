@@ -1,38 +1,63 @@
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
-import requests
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import Updater, CommandHandler, MessageHandler, CallbackQueryHandler, Filters, CallbackContext
 
-API_TOKEN = "8373260222:AAFus4Xn3effyn8vKKDN5nyZrUG3ix9Wips"
+# --------- CONFIG ---------
+BOT_TOKEN = "8373260222:AAFus4Xn3effyn8vKKDN5nyZrUG3ix9Wips"
 
-# Example: use TikTok unofficial API or public endpoint
-def get_tiktok_stats(url):
-    api_url = f"https://api.tiktokv.com/your_endpoint?url={url}"  # placeholder
-    response = requests.get(api_url)
-    if response.status_code == 200:
-        data = response.json()
-        return {
-            "views": data.get("stats", {}).get("playCount", "N/A"),
-            "likes": data.get("stats", {}).get("diggCount", "N/A"),
-            "comments": data.get("stats", {}).get("commentCount", "N/A"),
-            "shares": data.get("stats", {}).get("shareCount", "N/A")
-        }
-    else:
-        return None
+# Manual exchange rates
+exchange_rates = {
+    "usd_khr": 4100,   # 1 USD = 4100 KHR
+    "thb_usd": 0.029,  # 1 THB = 0.029 USD
+}
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("សួស្តី! ផ្ញើ TikTok link របស់អ្នកដើម្បី track stats 📈")
+# --------- START COMMAND ---------
+def start(update: Update, context: CallbackContext):
+    keyboard = [
+        [InlineKeyboardButton("💵 USD → KHR", callback_data="usd_khr")],
+        [InlineKeyboardButton("💴 THB → USD", callback_data="thb_usd")],
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    update.message.reply_text(
+        "សូមជ្រើសរើសរូបិយប័ណ្ណដែលចង់បម្លែង:", reply_markup=reply_markup
+    )
 
-async def handle_link(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    url = update.message.text
-    stats = get_tiktok_stats(url)
-    if stats:
-        msg = f"📊 TikTok Stats:\nViews: {stats['views']}\nLikes: {stats['likes']}\nComments: {stats['comments']}\nShares: {stats['shares']}"
-        await update.message.reply_text(msg)
-    else:
-        await update.message.reply_text("❌ មិនអាចទាញ stats បាន, សូមព្យាយាមម្តងទៀត")
+# --------- BUTTON CALLBACK ---------
+def button(update: Update, context: CallbackContext):
+    query = update.callback_query
+    query.answer()
+    context.user_data['rate_type'] = query.data
+    query.message.reply_text("សូមបញ្ចូលចំនួនដែលចង់បម្លែង:")
 
-app = ApplicationBuilder()
-app.add_handler(CommandHandler("start", start))
-app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
+# --------- HANDLE AMOUNT INPUT ---------
+def handle_amount(update: Update, context: CallbackContext):
+    text = update.message.text
+    rate_type = context.user_data.get('rate_type')
+    if not rate_type:
+        update.message.reply_text("សូមជ្រើសរើសរូបិយប័ណ្ណពី Menu ជាមុនសិន!")
+        return
+    try:
+        amount = float(text)
+        if rate_type == "usd_khr":
+            result = amount * exchange_rates['usd_khr']
+            update.message.reply_text(f"{amount} USD = {result:.0f} KHR")
+        elif rate_type == "thb_usd":
+            result = amount * exchange_rates['thb_usd']
+            update.message.reply_text(f"{amount} THB = {result:.2f} USD")
+    except ValueError:
+        update.message.reply_text("សូមបញ្ចូលលេខត្រឹមត្រូវ!")
 
-app.run_polling()
+# --------- MAIN ---------
+def main():
+    updater = Updater(BOT_TOKEN)
+    dp = updater.dispatcher
+
+    dp.add_handler(CommandHandler("start", start))
+    dp.add_handler(CallbackQueryHandler(button))
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_amount))
+
+    updater.start_polling()
+    print("Bot is running...")
+    updater.idle()
+
+if __name__ == "__main__":
+    main()
